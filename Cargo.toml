@@ -1,0 +1,8 @@
+[package]
+name = "diffshake"
+version = "0.1.0"
+authors = ["D Keeler <mozkeeler@gmail.com>"]
+
+[dependencies]
+tls-parser = "0.3.0"
+nom = "2.2.1"
