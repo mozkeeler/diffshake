@@ -1,10 +1,13 @@
+extern crate enum_primitive;
 extern crate nom;
 extern crate tls_parser;
 
+use enum_primitive::FromPrimitive;
 use nom::IResult;
 use std::env;
 use std::fs::File;
 use std::io::Read;
+use std::str;
 use tls_parser::*;
 
 fn main() {
@@ -24,10 +27,10 @@ fn dump_handshake(filename: &str) {
     match result {
         IResult::Done(_, record) => {
             dump_record(&record);
-        },
+        }
         IResult::Incomplete(_) => {
             panic!("incomplete?");
-        },
+        }
         IResult::Error(e) => {
             panic!("couldn't read: {}", e);
         }
@@ -37,16 +40,16 @@ fn dump_handshake(filename: &str) {
 fn dump_record(record: &TlsPlaintext) {
     println!("outer version: 0x{:04x}", record.hdr.version);
     if record.msg.len() < 1 {
-       panic!("expected at least one message");
+        panic!("expected at least one message");
     }
     let msg = &record.msg[0];
     let handshake = match msg {
-       &TlsMessage::Handshake(ref handshake) => handshake,
-       _ => panic!("expected handshake message"),
+        &TlsMessage::Handshake(ref handshake) => handshake,
+        _ => panic!("expected handshake message"),
     };
     let client_hello = match handshake {
-       &TlsMessageHandshake::ClientHello(ref client_hello) => client_hello,
-       _ => panic!("expected client hello"),
+        &TlsMessageHandshake::ClientHello(ref client_hello) => client_hello,
+        _ => panic!("expected client hello"),
     };
     println!("inner version: 0x{:04x}", client_hello.version);
     // TODO: session id and whatnot
@@ -66,19 +69,58 @@ fn dump_record(record: &TlsPlaintext) {
         println!("extensions:");
         let result = parse_tls_extensions(extension_bytes);
         match result {
-            IResult::Done(_, extensions) => {
-                for extension in extensions {
-                    println!("  {:#?}", extension);
-                }
+            IResult::Done(_, extensions) => for extension in extensions {
+                dump_extension(&extension);
             },
             IResult::Incomplete(_) => {
                 println!("  incomplete extension?");
-            },
+            }
             IResult::Error(e) => {
                 println!("  couldn't read extension: {}", e);
             }
         };
     } else {
         println!("no extensions");
+    }
+}
+
+fn dump_extension(extension: &TlsExtension) {
+    if let &TlsExtension::SignatureAlgorithms(ref signature_algorithms) = extension {
+        println!("  TlsExtension::SignatureAlgorithms([");
+        for signature_algorithm in signature_algorithms {
+            if let Some(hash_algorithm) = HashAlgorithm::from_u8(signature_algorithm.0) {
+                print!("    {:?}", hash_algorithm);
+            } else {
+                print!("    <Unknown hash 0x{:x}>", signature_algorithm.0);
+            }
+            if let Some(signature_algorithm) = SignAlgorithm::from_u8(signature_algorithm.1) {
+                println!("/{:?},", signature_algorithm);
+            } else {
+                println!("/<Unknown signature 0x{:x}>,", signature_algorithm.1);
+            }
+        }
+        println!("  ])");
+    } else if let &TlsExtension::EllipticCurves(ref curves) = extension {
+        println!("  TlsExtension::EllipticCurves([");
+        for curve in curves {
+            if let Some(named_group) = NamedGroup::from_u16(*curve) {
+                println!("    {:?},", named_group);
+            } else {
+                println!("    <Unknown curve 0x{:x}>,", curve);
+            }
+        }
+        println!("  ])");
+    } else if let &TlsExtension::ALPN(ref alpns) = extension {
+        println!("  TlsExtension::ALPN([");
+        for alpn in alpns {
+            if let Ok(as_string) = str::from_utf8(alpn) {
+                println!("    {},", as_string);
+            } else {
+                println!("    {:?}", alpn);
+            }
+        }
+        println!("  ])");
+    } else {
+        println!("  {:#?}", extension);
     }
 }
