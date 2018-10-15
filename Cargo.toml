@@ -1,9 +1,8 @@
 [package]
 name = "diffshake"
 version = "0.1.0"
-authors = ["D Keeler <mozkeeler@gmail.com>"]
+authors = ["Dana Keeler <mozkeeler@gmail.com>"]
 
 [dependencies]
-tls-parser = "0.3.0"
-nom = "2.2.1"
+tls-parser = "0.6.0"
 enum_primitive = "0.1.1"

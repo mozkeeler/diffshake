@@ -1,9 +1,7 @@
 extern crate enum_primitive;
-extern crate nom;
 extern crate tls_parser;
 
 use enum_primitive::FromPrimitive;
-use nom::IResult;
 use std::env;
 use std::fs::File;
 use std::io::Read;
@@ -23,18 +21,10 @@ fn dump_handshake(filename: &str) {
     let mut file = File::open(filename).expect("file not found");
     let mut contents: Vec<u8> = Vec::new();
     file.read_to_end(&mut contents).expect("couldn't read file");
-    let result = parse_tls_plaintext(&contents);
-    match result {
-        IResult::Done(_, record) => {
-            dump_record(&record);
-        }
-        IResult::Incomplete(_) => {
-            panic!("incomplete?");
-        }
-        IResult::Error(e) => {
-            panic!("couldn't read: {}", e);
-        }
-    };
+    match parse_tls_plaintext(&contents) {
+        Ok((_, record)) => dump_record(&record),
+        Err(e) => panic!("error parsing TLS record: {}", e),
+    }
 }
 
 fn dump_record(record: &TlsPlaintext) {
@@ -55,30 +45,20 @@ fn dump_record(record: &TlsPlaintext) {
     // TODO: session id and whatnot
     println!("ciphersuites:");
     for ciphersuite in &client_hello.ciphers {
-        let ciphersuite_name = match TlsCipherSuite::from_id(*ciphersuite) {
-            Some(tls_cipher_suite) => tls_cipher_suite.name,
-            None => "UNKNOWN",
-        };
-        println!("  {} (0x{:04x})", ciphersuite_name, ciphersuite);
+        println!("  {:?}", ciphersuite);
     }
     println!("compression methods:");
     for compression_method in &client_hello.comp {
-        println!("  {}", compression_method);
+        println!("  {:?}", compression_method);
     }
     if let Some(extension_bytes) = client_hello.ext {
         println!("extensions:");
-        let result = parse_tls_extensions(extension_bytes);
-        match result {
-            IResult::Done(_, extensions) => for extension in extensions {
+        match parse_tls_extensions(extension_bytes) {
+            Ok((_, extensions)) => for extension in extensions {
                 dump_extension(&extension);
-            },
-            IResult::Incomplete(_) => {
-                println!("  incomplete extension?");
             }
-            IResult::Error(e) => {
-                println!("  couldn't read extension: {}", e);
-            }
-        };
+            Err(e) => println!("  couldn't parse extension: {}", e),
+        }
     } else {
         println!("no extensions");
     }
