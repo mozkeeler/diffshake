@@ -1,5 +1,6 @@
 /target/
 **/*.rs.bk
+*.swp
 *.text
 *.bin
 Cargo.lock
